@@ -1,5 +1,5 @@
 {
-   "name": "sei-ai-nft-frontend",, // Renamed for clarity
+   "name": "sei-ai-nft-frontend", // Renamed for clarity
     "version": "0.1.0", // Adjusted version
     "private": true,
     "type": "module",
