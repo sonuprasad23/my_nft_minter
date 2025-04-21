@@ -1,5 +1,5 @@
 // frontend/src/App.tsx
-import { useEffect, useState, useRef } from 'react'; // Removed 'React,'
+import { useEffect, useState, useRef } from 'react';
 import { Header } from './components/Header';
 import { MintForm } from './components/MintForm';
 import { StatusIndicator } from './components/StatusIndicator';
@@ -10,7 +10,7 @@ import './index.css';
 // --- Interfaces ---
 interface MintResult {
   imageUrl: string;
-  tokenId: string | number | null; // Keep null possibility if API returns it
+  tokenId: string | number | null;
   transactionUrl: string;
   metadataUrl: string;
   imageIpfsUrl: string;
@@ -19,7 +19,7 @@ interface ApiSuccessResponse {
   success: true;
   image_cid: string;
   metadata_cid: string;
-  token_id: string | number | null; // Keep null possibility if API returns it
+  token_id: string | number | null;
   transaction_hash: string;
   explorer_url: string;
 }
@@ -38,15 +38,9 @@ export function App() {
 
   const speedIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // --- !!! CRITICAL CHANGE FOR DEPLOYMENT !!! ---
-  // Read backend URL from environment variable set in Netlify UI
-  // Fallback to localhost for local development (requires local frontend/.env file)
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5001/mint';
-  // Optional: Configure IPFS Gateway via environment variable
   const IPFS_GATEWAY = import.meta.env.VITE_IPFS_GATEWAY || 'https://ipfs.io/ipfs/';
-  // ---
 
-  // Log the URLs being used (helpful for debugging deployment)
   useEffect(() => {
     console.log("Using Backend URL:", BACKEND_URL);
     console.log("Using IPFS Gateway:", IPFS_GATEWAY);
@@ -60,46 +54,56 @@ export function App() {
     }
   };
 
+  // --- Corrected useEffect for starSpeed ---
   useEffect(() => {
-    clearSpeedInterval();
+    clearSpeedInterval(); // Clear any existing interval first
+
+    // Check the *current* status from the state
     if (status === 'ready' || status === 'error' || status === 'success') {
-      setStarSpeed(1);
+      setStarSpeed(1); // Set speed to normal if not processing
     } else {
-      setStarSpeed(20);
-      const targetSpeed = 150; const increment = 15; const intervalTime = 100;
+      // If processing, start increasing speed
+      setStarSpeed(20); // Initial boost
+      const targetSpeed = 150;
+      const increment = 15;
+      const intervalTime = 100;
+
       speedIntervalRef.current = setInterval(() => {
+        // Update speed based on the *previous* speed, not checking status here
         setStarSpeed(currentSpeed => {
-          // Check status *inside* the interval callback as well
-          if (status === 'ready' || status === 'error' || status === 'success') {
-              clearSpeedInterval(); return 1;
-          }
           const nextSpeed = currentSpeed + increment;
           if (nextSpeed >= targetSpeed) {
-            clearSpeedInterval(); return targetSpeed;
+            clearSpeedInterval(); // Stop interval when target is reached
+            return targetSpeed;
           }
           return nextSpeed;
         });
       }, intervalTime);
     }
-    // Cleanup function for useEffect
-    return () => { clearSpeedInterval(); };
-  }, [status]); // Dependency array includes status
 
-  const handleMint = async (prompt: string, address: string): Promise<void> => { // Added return type
+    // Cleanup function: ensures interval is cleared if status changes
+    // or component unmounts while interval is running.
+    return () => {
+        clearSpeedInterval();
+    };
+  }, [status]); // Re-run this effect whenever the status changes
+  // --- End of corrected useEffect ---
+
+  const handleMint = async (prompt: string, address: string): Promise<void> => {
     setStatus('generating');
     setMintResult(null);
     setErrorMessage(null);
 
     try {
-      console.log(`Sending request to backend: ${BACKEND_URL}`); // Log the actual URL
-      const response = await fetch(BACKEND_URL, { // Use the variable
+      console.log(`Sending request to backend: ${BACKEND_URL}`);
+      const response = await fetch(BACKEND_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt, recipient_address: address }),
       });
 
-      // Assume 'waiting_tx' starts after request *initiation* and ends when response arrives
-      // This might need adjustment based on backend logic, but it's a reasonable place
+      // Update status based on backend progress if possible, otherwise use waiting_tx
+      // For now, assume backend handles intermediate steps and we wait for final result
       setStatus('waiting_tx');
 
       const responseData: ApiSuccessResponse | ApiErrorResponse = await response.json();
@@ -108,11 +112,8 @@ export function App() {
         const successData = responseData as ApiSuccessResponse;
         console.log("Minting successful:", successData);
         setStatus('success');
-
-        // Use the IPFS_GATEWAY variable
         setMintResult({
           imageUrl: `${IPFS_GATEWAY}${successData.image_cid}`,
-          // Ensure tokenId is always a string or 'N/A' for consistency in MintResult
           tokenId: successData.token_id !== null ? String(successData.token_id) : 'N/A',
           transactionUrl: successData.explorer_url,
           metadataUrl: `${IPFS_GATEWAY}${successData.metadata_cid}`,
@@ -121,14 +122,12 @@ export function App() {
 
       } else {
         const errorData = responseData as ApiErrorResponse;
-        // Default error message if 'error' field is missing
         const errorMsg = errorData.error || `Request failed with status ${response.status}`;
         console.error('API Error:', errorMsg);
         setStatus('error');
         setErrorMessage(errorMsg);
       }
     } catch (error) {
-      // Type guard for better error handling
       const errorMsg = error instanceof Error ? error.message : 'An unknown network error occurred.';
       console.error('Network/Fetch Error:', error);
       setStatus('error');
@@ -137,8 +136,7 @@ export function App() {
   };
 
   return (
-    // JSX structure remains the same
-    <div className="relative min-h-screen text-white overflow-hidden bg-gray-900"> {/* Added default bg */}
+    <div className="relative min-h-screen text-white overflow-hidden bg-gray-900">
       <StarField speed={starSpeed} />
       <div className="relative z-10 flex flex-col min-h-screen">
         <Header />
@@ -148,8 +146,9 @@ export function App() {
               onMint={handleMint}
               disabled={status !== 'ready' && status !== 'success' && status !== 'error'}
             />
+            {/* StatusIndicator will now only show during intermediate steps or on error */}
             <StatusIndicator status={status} errorMessage={errorMessage} />
-            {/* Render ResultsSection only on success and when mintResult is available */}
+            {/* ResultsSection only shows on success */}
             {status === 'success' && mintResult && <ResultsSection result={mintResult} />}
           </div>
         </main>
