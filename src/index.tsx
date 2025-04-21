@@ -1,14 +1,5 @@
-import React from 'react';
-import ReactDOM from 'react-dom/client'; // Use client import for React 18+
 import './index.css';
-import { App } from './App';
-
-const rootElement = document.getElementById('root');
-if (!rootElement) throw new Error('Failed to find the root element');
-
-const root = ReactDOM.createRoot(rootElement);
-root.render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+import React from "react";
+import { render } from "react-dom";
+import { App } from "./App";
+render(<App />, document.getElementById("root"));

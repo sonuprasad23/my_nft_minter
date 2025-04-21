@@ -34,21 +34,25 @@ export function App() {
   const [status, setStatus] = useState<MintingStatus>('ready');
   const [mintResult, setMintResult] = useState<MintResult | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [starSpeed, setStarSpeed] = useState(1); // Start with normal slow speed
+  const [starSpeed, setStarSpeed] = useState(1);
 
   const speedIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Read backend URL from environment variable set by Netlify or local .env file
+  // --- !!! CRITICAL CHANGE FOR DEPLOYMENT !!! ---
+  // Read backend URL from environment variable set in Netlify UI
+  // Fallback to localhost for local development (requires local frontend/.env file)
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5001/mint';
-  const IPFS_GATEWAY = import.meta.env.VITE_IPFS_GATEWAY || 'https://ipfs.io/ipfs/'; // Allow configuring gateway
+  // Optional: Configure IPFS Gateway via environment variable
+  const IPFS_GATEWAY = import.meta.env.VITE_IPFS_GATEWAY || 'https://ipfs.io/ipfs/';
+  // ---
 
+  // Log the URLs being used (helpful for debugging deployment)
   useEffect(() => {
     console.log("Using Backend URL:", BACKEND_URL);
     console.log("Using IPFS Gateway:", IPFS_GATEWAY);
   }, [BACKEND_URL, IPFS_GATEWAY]);
 
 
-  // --- Function to clear the speed interval ---
   const clearSpeedInterval = () => {
     if (speedIntervalRef.current) {
       clearInterval(speedIntervalRef.current);
@@ -56,24 +60,17 @@ export function App() {
     }
   };
 
-  // --- Effect to control star speed based on status ---
   useEffect(() => {
-    clearSpeedInterval(); // Always clear previous interval first
-
+    clearSpeedInterval();
     if (status === 'ready' || status === 'error' || status === 'success') {
-      // Slow speed for ready, error, AND success
       setStarSpeed(1);
     } else {
-      // Start acceleration for all processing states
-      setStarSpeed(20); // Start accelerating
-      const targetSpeed = 150;
-      const increment = 15;
-      const intervalTime = 100; // ms
-
+      setStarSpeed(20);
+      const targetSpeed = 150; const increment = 15; const intervalTime = 100;
       speedIntervalRef.current = setInterval(() => {
         setStarSpeed(currentSpeed => {
           if (status === 'ready' || status === 'error' || status === 'success') {
-              clearSpeedInterval(); return 1; // Stop accelerating if status changed back
+              clearSpeedInterval(); return 1;
           }
           const nextSpeed = currentSpeed + increment;
           if (nextSpeed >= targetSpeed) {
@@ -83,33 +80,32 @@ export function App() {
         });
       }, intervalTime);
     }
-    // Cleanup function for the effect
     return () => { clearSpeedInterval(); };
-  }, [status]); // Run effect only when status changes
+  }, [status]);
 
-  // --- Handle Minting ---
   const handleMint = async (prompt: string, address: string) => {
-    setStatus('generating'); // Trigger acceleration
+    setStatus('generating');
     setMintResult(null);
     setErrorMessage(null);
 
     try {
-      console.log(`Sending request to backend: ${BACKEND_URL}`);
-      const response = await fetch(BACKEND_URL, {
+      console.log(`Sending request to backend: ${BACKEND_URL}`); // Log the actual URL
+      const response = await fetch(BACKEND_URL, { // Use the variable
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt, recipient_address: address }),
       });
 
-      setStatus('waiting_tx'); // Update status while waiting for response/tx
+      setStatus('waiting_tx');
 
       const responseData: ApiSuccessResponse | ApiErrorResponse = await response.json();
 
       if (response.ok && 'success' in responseData && responseData.success === true) {
         const successData = responseData as ApiSuccessResponse;
         console.log("Minting successful:", successData);
-        setStatus('success'); // Reset speed to slow
+        setStatus('success');
 
+        // Use the IPFS_GATEWAY variable
         setMintResult({
           imageUrl: `${IPFS_GATEWAY}${successData.image_cid}`,
           tokenId: successData.token_id !== null ? String(successData.token_id) : 'N/A',
@@ -122,18 +118,19 @@ export function App() {
         const errorData = responseData as ApiErrorResponse;
         const errorMsg = errorData.error || `Request failed with status ${response.status}`;
         console.error('API Error:', errorMsg);
-        setStatus('error'); // Reset speed to slow
+        setStatus('error');
         setErrorMessage(errorMsg);
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'An unknown network error occurred.';
       console.error('Network/Fetch Error:', error);
-      setStatus('error'); // Reset speed to slow
+      setStatus('error');
       setErrorMessage(errorMsg);
     }
   };
 
   return (
+    // JSX structure remains the same as the last full version provided
     <div className="relative min-h-screen text-white overflow-hidden">
       <StarField speed={starSpeed} />
       <div className="relative z-10 flex flex-col min-h-screen">

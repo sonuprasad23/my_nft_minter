@@ -1,5 +1,5 @@
-// frontend/src/components/StarField.tsx
-import React, { useEffect, useRef, useMemo } from 'react';
+// src/components/StarField.tsx
+import React, { useEffect, useRef, useMemo } from 'react'; // Added useMemo
 import * as THREE from 'three';
 
 interface StarFieldProps {
@@ -9,59 +9,82 @@ interface StarFieldProps {
 export function StarField({ speed }: StarFieldProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const animationFrameIdRef = useRef<number | null>(null);
-  const speedRef = useRef(speed);
+  const speedRef = useRef(speed); // Ref to store current speed for animation loop
 
+  // Update speedRef whenever the prop changes
   useEffect(() => {
     speedRef.current = speed;
   }, [speed]);
 
+  // --- Memoize star data to avoid recalculation on every render ---
   const starData = useMemo(() => {
     const starCount = 15000;
-    const depth = 1000;
-    const spread = 1000;
+    const depth = 1000; // How far back stars start
+    const spread = 1000; // Increase initial X/Y spread significantly
+
     const vertices = [];
-    const velocities = [];
-    const originalPositions = [];
+    const velocities = []; // Store base velocity factor for each star
+    const originalPositions = []; // To reset positions
 
     for (let i = 0; i < starCount; i++) {
-      const x = (Math.random() - 0.5) * spread;
-      const y = (Math.random() - 0.5) * spread;
-      const z = Math.random() * -depth;
+      const x = (Math.random() - 0.5) * spread; // Wider X spread
+      const y = (Math.random() - 0.5) * spread; // Wider Y spread
+      const z = Math.random() * -depth; // Start behind the camera
+
       vertices.push(x, y, z);
-      originalPositions.push(x, y, z);
-      velocities.push(Math.random() * 0.5 + 0.1);
+      originalPositions.push(x, y, z); // Store initial position
+      velocities.push(Math.random() * 0.5 + 0.1); // Random base speed factor (0.1 to 0.6)
     }
     return { vertices, velocities, originalPositions, depth, starCount };
-  }, []);
+  }, []); // Empty dependency array means this runs only once
 
   useEffect(() => {
     if (!containerRef.current || typeof window === 'undefined') return;
 
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, starData.depth + 50);
-    camera.position.z = 1;
+    // Adjust FOV slightly if needed, 60 is usually good for perspective
+    const camera = new THREE.PerspectiveCamera(
+      60,
+      window.innerWidth / window.innerHeight,
+      0.1,
+      starData.depth + 50 // Ensure far plane is beyond the star depth
+    );
+    camera.position.z = 1; // Keep camera slightly back
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: true,
+    });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Optimize pixel ratio
-
+    // Clear previous canvas if any (helps with hot-reloading)
     while (containerRef.current.firstChild) {
         containerRef.current.removeChild(containerRef.current.firstChild);
     }
     containerRef.current.appendChild(renderer.domElement);
 
+    // --- Create Stars ---
     const starsGeometry = new THREE.BufferGeometry();
-    starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starData.vertices, 3));
+    starsGeometry.setAttribute(
+      'position',
+      new THREE.Float32BufferAttribute(starData.vertices, 3)
+    );
+
     const starsMaterial = new THREE.PointsMaterial({
       color: 0xffffff,
-      size: 0.02,
+      size: 0.02, // Adjust size as needed
       sizeAttenuation: true,
       transparent: true,
       opacity: 0.85,
+      // Optional: Add slight fog to make distant stars dimmer
+      // fog: true
     });
+    // Optional: Add fog to the scene
+    // scene.fog = new THREE.FogExp2(0x0a0a2c, 0.001); // Match background color
+
     const stars = new THREE.Points(starsGeometry, starsMaterial);
     scene.add(stars);
 
+    // --- Handle Resize ---
     const handleResize = () => {
       const width = window.innerWidth;
       const height = window.innerHeight;
@@ -73,43 +96,63 @@ export function StarField({ speed }: StarFieldProps) {
     };
     window.addEventListener('resize', handleResize);
 
-    const baseSpeed = 0.05;
+    // --- Animation Loop ---
+    const baseSpeed = 0.05; // Base movement factor per frame
+
     const animate = () => {
       animationFrameIdRef.current = requestAnimationFrame(animate);
-      const positions = starsGeometry.attributes.position as THREE.BufferAttribute;
-      const currentSpeed = speedRef.current;
 
-      if (currentSpeed > 0) {
+      const positions = starsGeometry.attributes.position as THREE.BufferAttribute; // Type assertion
+      const currentSpeed = speedRef.current; // Get current speed from ref
+
+      if (currentSpeed > 0) { // Only animate if speed is positive
         for (let i = 0; i < starData.starCount; i++) {
             const zIndex = i * 3 + 2;
             const baseVelocity = starData.velocities[i];
+
+            // Update Z position
             positions.array[zIndex] += baseVelocity * baseSpeed * currentSpeed;
+
+            // Reset star if it passes the camera
             if (positions.array[zIndex] > camera.position.z) {
                 const originalIndex = i * 3;
-                positions.array[originalIndex] = starData.originalPositions[originalIndex];
-                positions.array[originalIndex + 1] = starData.originalPositions[originalIndex + 1];
-                positions.array[zIndex] = Math.random() * -starData.depth;
+                // Reset using original position data but with new Z
+                positions.array[originalIndex] = starData.originalPositions[originalIndex]; // Reset X
+                positions.array[originalIndex + 1] = starData.originalPositions[originalIndex + 1]; // Reset Y
+                positions.array[zIndex] = Math.random() * -starData.depth; // Reset Z far back
             }
         }
-        positions.needsUpdate = true;
+        positions.needsUpdate = true; // Update buffer geometry
       }
+
       renderer.render(scene, camera);
     };
-    animate();
+    animate(); // Start animation
 
+    // --- Cleanup ---
     return () => {
       window.removeEventListener('resize', handleResize);
-      if (animationFrameIdRef.current) cancelAnimationFrame(animationFrameIdRef.current);
-      if (containerRef.current && renderer.domElement) containerRef.current.removeChild(renderer.domElement);
+      if (animationFrameIdRef.current) {
+        cancelAnimationFrame(animationFrameIdRef.current);
+      }
+      if (containerRef.current && renderer.domElement) {
+        containerRef.current.removeChild(renderer.domElement);
+      }
       scene.remove(stars);
       starsGeometry.dispose();
       starsMaterial.dispose();
       renderer.dispose();
     };
-  }, [starData]);
+  }, [starData]); // Rerun effect only if starData changes (which it won't here)
 
+  // Container div
   return <div ref={containerRef} style={{
-      position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: -1,
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      width: '100%',
+      height: '100%',
+      zIndex: -1, // Keep behind content
       background: 'linear-gradient(to bottom, #0a0a2c, #1a1a3c)'
   }} />;
 }
