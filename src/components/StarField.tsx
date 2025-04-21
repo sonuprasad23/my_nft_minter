@@ -1,5 +1,5 @@
 // src/components/StarField.tsx
-import React, { useEffect, useRef, useMemo } from 'react'; // Added useMemo
+import { useEffect, useRef, useMemo } from 'react'; // Removed 'React,'
 import * as THREE from 'three';
 
 interface StarFieldProps {
@@ -39,6 +39,7 @@ export function StarField({ speed }: StarFieldProps) {
   }, []); // Empty dependency array means this runs only once
 
   useEffect(() => {
+    // Ensure containerRef.current exists before proceeding
     if (!containerRef.current || typeof window === 'undefined') return;
 
     const scene = new THREE.Scene();
@@ -53,7 +54,7 @@ export function StarField({ speed }: StarFieldProps) {
 
     const renderer = new THREE.WebGLRenderer({
       antialias: true,
-      alpha: true,
+      alpha: true, // Make canvas background transparent
     });
     renderer.setSize(window.innerWidth, window.innerHeight);
     // Clear previous canvas if any (helps with hot-reloading)
@@ -72,14 +73,14 @@ export function StarField({ speed }: StarFieldProps) {
     const starsMaterial = new THREE.PointsMaterial({
       color: 0xffffff,
       size: 0.02, // Adjust size as needed
-      sizeAttenuation: true,
+      sizeAttenuation: true, // Stars further away appear smaller
       transparent: true,
       opacity: 0.85,
       // Optional: Add slight fog to make distant stars dimmer
       // fog: true
     });
     // Optional: Add fog to the scene
-    // scene.fog = new THREE.FogExp2(0x0a0a2c, 0.001); // Match background color
+    // scene.fog = new THREE.FogExp2(0x0a0a2c, 0.001); // Match background color if not transparent
 
     const stars = new THREE.Points(starsGeometry, starsMaterial);
     scene.add(stars);
@@ -105,7 +106,8 @@ export function StarField({ speed }: StarFieldProps) {
       const positions = starsGeometry.attributes.position as THREE.BufferAttribute; // Type assertion
       const currentSpeed = speedRef.current; // Get current speed from ref
 
-      if (currentSpeed > 0) { // Only animate if speed is positive
+      // Only animate if speed is positive and positions exist
+      if (currentSpeed > 0 && positions) {
         for (let i = 0; i < starData.starCount; i++) {
             const zIndex = i * 3 + 2;
             const baseVelocity = starData.velocities[i];
@@ -122,7 +124,7 @@ export function StarField({ speed }: StarFieldProps) {
                 positions.array[zIndex] = Math.random() * -starData.depth; // Reset Z far back
             }
         }
-        positions.needsUpdate = true; // Update buffer geometry
+        positions.needsUpdate = true; // Tell Three.js to update the buffer
       }
 
       renderer.render(scene, camera);
@@ -135,9 +137,15 @@ export function StarField({ speed }: StarFieldProps) {
       if (animationFrameIdRef.current) {
         cancelAnimationFrame(animationFrameIdRef.current);
       }
+      // Check if containerRef.current still exists before removing child
       if (containerRef.current && renderer.domElement) {
-        containerRef.current.removeChild(renderer.domElement);
+        try {
+           containerRef.current.removeChild(renderer.domElement);
+        } catch (e) {
+           console.warn("Could not remove renderer domElement during cleanup:", e);
+        }
       }
+      // Dispose of Three.js resources
       scene.remove(stars);
       starsGeometry.dispose();
       starsMaterial.dispose();
@@ -153,6 +161,7 @@ export function StarField({ speed }: StarFieldProps) {
       width: '100%',
       height: '100%',
       zIndex: -1, // Keep behind content
+      // Define background explicitly here or ensure body/parent has it
       background: 'linear-gradient(to bottom, #0a0a2c, #1a1a3c)'
   }} />;
 }

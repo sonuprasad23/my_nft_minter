@@ -1,5 +1,5 @@
 // src/components/StatusIndicator.tsx
-import React from 'react';
+// Removed 'React' import
 import { Loader2Icon, CheckCircleIcon, XCircleIcon } from 'lucide-react';
 
 // Define props including the optional errorMessage
@@ -9,8 +9,8 @@ interface StatusIndicatorProps {
 }
 
 export function StatusIndicator({ status, errorMessage }: StatusIndicatorProps) {
-  // Don't render anything if status is 'ready'
-  if (status === 'ready') {
+  // Don't render anything if status is 'ready' or 'success' (results section shows success)
+  if (status === 'ready' || status === 'success') {
     return null;
   }
 
@@ -26,8 +26,7 @@ export function StatusIndicator({ status, errorMessage }: StatusIndicatorProps) 
         return { icon: <Loader2Icon className="h-5 w-5 mr-2 animate-spin" />, text: 'Minting on Sei...', color: 'text-blue-400' };
       case 'waiting_tx':
          return { icon: <Loader2Icon className="h-5 w-5 mr-2 animate-spin" />, text: 'Waiting for Confirmation...', color: 'text-purple-400' }; // Different color maybe
-      case 'success':
-        return { icon: <CheckCircleIcon className="h-5 w-5 mr-2" />, text: 'Success! Your NFT has been minted.', color: 'text-green-400' };
+     // Case 'success' is removed from rendering here
       case 'error':
         return {
           icon: <XCircleIcon className="h-5 w-5 mr-2" />,
@@ -36,6 +35,8 @@ export function StatusIndicator({ status, errorMessage }: StatusIndicatorProps) 
           color: 'text-red-400'
         };
       default: // Should not happen with defined states, but good fallback
+        // Assert exhaustive check (optional but good practice)
+        // const _exhaustiveCheck: never = status;
         return { icon: <Loader2Icon className="h-5 w-5 mr-2 animate-spin" />, text: 'Processing...', color: 'text-blue-400' };
     }
   };
@@ -43,8 +44,9 @@ export function StatusIndicator({ status, errorMessage }: StatusIndicatorProps) 
   const { icon, text, color } = getStatusContent();
 
   return (
-    <div className="flex items-center justify-center mb-8 min-h-[28px]"> {/* Added min-height */}
-      <div className={`flex items-center ${color} font-medium text-center`}> {/* Added text-center */}
+    // Ensure wrapper always takes up space to prevent layout shifts
+    <div className="flex items-center justify-center mb-8 min-h-[28px]">
+      <div className={`flex items-center ${color} font-medium text-center animate-fade-in`}> {/* Added fade-in animation */}
         {icon}
         <span>{text}</span>
       </div>

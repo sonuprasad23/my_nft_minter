@@ -1,5 +1,5 @@
 // frontend/src/App.tsx
-import React, { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react'; // Removed 'React,'
 import { Header } from './components/Header';
 import { MintForm } from './components/MintForm';
 import { StatusIndicator } from './components/StatusIndicator';
@@ -10,7 +10,7 @@ import './index.css';
 // --- Interfaces ---
 interface MintResult {
   imageUrl: string;
-  tokenId: string | number | null;
+  tokenId: string | number | null; // Keep null possibility if API returns it
   transactionUrl: string;
   metadataUrl: string;
   imageIpfsUrl: string;
@@ -19,7 +19,7 @@ interface ApiSuccessResponse {
   success: true;
   image_cid: string;
   metadata_cid: string;
-  token_id: string | number | null;
+  token_id: string | number | null; // Keep null possibility if API returns it
   transaction_hash: string;
   explorer_url: string;
 }
@@ -69,6 +69,7 @@ export function App() {
       const targetSpeed = 150; const increment = 15; const intervalTime = 100;
       speedIntervalRef.current = setInterval(() => {
         setStarSpeed(currentSpeed => {
+          // Check status *inside* the interval callback as well
           if (status === 'ready' || status === 'error' || status === 'success') {
               clearSpeedInterval(); return 1;
           }
@@ -80,10 +81,11 @@ export function App() {
         });
       }, intervalTime);
     }
+    // Cleanup function for useEffect
     return () => { clearSpeedInterval(); };
-  }, [status]);
+  }, [status]); // Dependency array includes status
 
-  const handleMint = async (prompt: string, address: string) => {
+  const handleMint = async (prompt: string, address: string): Promise<void> => { // Added return type
     setStatus('generating');
     setMintResult(null);
     setErrorMessage(null);
@@ -96,6 +98,8 @@ export function App() {
         body: JSON.stringify({ prompt, recipient_address: address }),
       });
 
+      // Assume 'waiting_tx' starts after request *initiation* and ends when response arrives
+      // This might need adjustment based on backend logic, but it's a reasonable place
       setStatus('waiting_tx');
 
       const responseData: ApiSuccessResponse | ApiErrorResponse = await response.json();
@@ -108,6 +112,7 @@ export function App() {
         // Use the IPFS_GATEWAY variable
         setMintResult({
           imageUrl: `${IPFS_GATEWAY}${successData.image_cid}`,
+          // Ensure tokenId is always a string or 'N/A' for consistency in MintResult
           tokenId: successData.token_id !== null ? String(successData.token_id) : 'N/A',
           transactionUrl: successData.explorer_url,
           metadataUrl: `${IPFS_GATEWAY}${successData.metadata_cid}`,
@@ -116,12 +121,14 @@ export function App() {
 
       } else {
         const errorData = responseData as ApiErrorResponse;
+        // Default error message if 'error' field is missing
         const errorMsg = errorData.error || `Request failed with status ${response.status}`;
         console.error('API Error:', errorMsg);
         setStatus('error');
         setErrorMessage(errorMsg);
       }
     } catch (error) {
+      // Type guard for better error handling
       const errorMsg = error instanceof Error ? error.message : 'An unknown network error occurred.';
       console.error('Network/Fetch Error:', error);
       setStatus('error');
@@ -130,8 +137,8 @@ export function App() {
   };
 
   return (
-    // JSX structure remains the same as the last full version provided
-    <div className="relative min-h-screen text-white overflow-hidden">
+    // JSX structure remains the same
+    <div className="relative min-h-screen text-white overflow-hidden bg-gray-900"> {/* Added default bg */}
       <StarField speed={starSpeed} />
       <div className="relative z-10 flex flex-col min-h-screen">
         <Header />
@@ -142,7 +149,8 @@ export function App() {
               disabled={status !== 'ready' && status !== 'success' && status !== 'error'}
             />
             <StatusIndicator status={status} errorMessage={errorMessage} />
-            {mintResult && status === 'success' && <ResultsSection result={mintResult} />}
+            {/* Render ResultsSection only on success and when mintResult is available */}
+            {status === 'success' && mintResult && <ResultsSection result={mintResult} />}
           </div>
         </main>
          <footer className="text-center p-4 text-xs text-gray-500">

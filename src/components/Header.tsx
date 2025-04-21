@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import { useState } from 'react'; // Removed 'React,'
 import { MenuIcon, XIcon } from 'lucide-react';
+
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   return <header className="bg-gray-800 shadow-md">
